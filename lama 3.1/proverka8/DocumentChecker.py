@@ -3,7 +3,7 @@ import pytesseract
 import os
 from cv2.gapi import kernel
 from pdf2image import convert_from_path
-from sentence_transformers import SentenceTransformer, util
+from Levenshtein import ratio
 from sklearn.cluster import DBSCAN
 from pathlib import Path
 
@@ -11,46 +11,70 @@ def local_to_absolute_path(file_path):
     return str(Path(file_path).resolve())
 
 # Загрузка модели эмбеддингов
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
 
 # Сравнение с использованием эмбеддингов напрямую
-def compare_names_with_embeddings(threshold=0.8):
+def compare_names_with_embeddings(threshold=0.7):
+    print('Шаг 3 Анализ блоков \'Утверждаю\' и \'Согласовано\'')
     pytesseract.pytesseract.tesseract_cmd = local_to_absolute_path('Tesseract/tesseract.exe')
 
-    approve_arr = [[len(os.listdir(local_to_absolute_path('data/change_image')))],[]]
-    agreed_arr = [[len(os.listdir(local_to_absolute_path('data/change_image')))],[]]
+    approve_arr = []
+    agreed_arr = []
 
-    count = 0
+    #todo нужно сделать отсеивание элементов, если они идут спустя 4 пустых элемента массива
     for value in os.listdir(local_to_absolute_path('data/change_image')):
-        img = cv2.imread(value)
+        img = cv2.imread(local_to_absolute_path('data/change_image/' + value))
         data = pytesseract.image_to_data(img, lang='rus', output_type=pytesseract.Output.DICT)
 
         for iterator in range(len(data)):
             if 'утверждаю' in data['text'][iterator].lower().strip() or 'утверждено' in data['text'][iterator].lower().strip():
-                approve_arr[count] = data['text']
+                buffer = str(''.join(data['text']))
+                approve_arr.append(buffer)
+                break
             elif 'согласов' in data['text'][iterator].lower().strip():
-                agreed_arr[count] = data['text']
+                buffer = str(''.join(data['text']))
+                agreed_arr.append(buffer)
+                break
 
-        count += 1
+    print('Шаг 4 Подготовка результатов')
+    if approve_arr and agreed_arr:
+        '''
+        МОЖНО ДОДЕЛАТЬ, ЕСЛИ ПРИШЛО НЕСКОЛЬКО УТВЕРЖДАЮ И СОГЛАСОВАНО
+        
+        if approve_arr and agreed_arr:
+        if len(approve_arr) > 1:
+            print('Обнаружено больше 1-го наименования УТВЕРЖДАЮ')
+            for i in range(len(approve_arr) - 1):
 
-    """
-    if approve and agreed:
-        emb1 = model.encode(approve, convert_to_tensor=True)
-        emb2 = model.encode(agreed, convert_to_tensor=True)
-        similarity = util.pytorch_cos_sim(emb1, emb2).item()
+                if similarity >= threshold:
+                    print(f"Наименования не совпадают (различия: {similarity:.2f})")
+                else:
+                    print(f"Наименования совпадают (различия: {similarity:.2f})")
 
-        if similarity >= threshold:
-            return f"Наименования совпадают (сходство: {similarity:.2f})"
+        if len(agreed_arr) > 1:
+            print('Обнаружено больше 1-го наименования СОГЛАСОВАНО')
+            for i in range(len(agreed_arr) - 1):
+
+                if similarity >= threshold:
+                    print(f"Наименования не совпадают (различия: {similarity:.2f})")
+                else:
+                    print(f"Наименования совпадают (различия: {similarity:.2f})")
+        '''
+        if len(agreed_arr) == 1 and len(approve_arr) == 1:
+            similarity = ratio(approve_arr[0], agreed_arr[0])
+
+            if similarity <= threshold:
+                print('\n' * 2 + f"ВНИМАНИЕ!\nНизкий процент совпадения текста - проверьте документ на правильность заполнения! (схожесть: {similarity:.2f})")
+            else:
+                print('\n' * 2+ f"Наименования совпадают (схожесть: {similarity:.2f})")
         else:
-            return f"Наименования не совпадают (сходство: {similarity:.2f})"
+            print('\n' * 2 + 'Внимание!\nОбнаружено больше одного блока текста \"Согласовано\" или \"Утверждаю\"')
     else:
-        return "Ошибка: Не удалось извлечь наименования"
-    """
+        print("Ошибка!\nНаименования не найдены!")
 
 #Преобразование pdf к jpg
 def convert_PDF_to_image(file_path, save_image_path = local_to_absolute_path('data/pdf_images'), poppler_path = local_to_absolute_path('urfu_LLM_Documents/lama 3.1/poppler-24.08.0/Library/bin')):
     print('Шаг 1 Конвертация pdf к изображению...')
-    delete_file_in_folder()
     os.environ["PATH"] += os.pathsep + poppler_path
     images = convert_from_path(file_path)
 
@@ -58,14 +82,23 @@ def convert_PDF_to_image(file_path, save_image_path = local_to_absolute_path('da
         image.save(f'{save_image_path}\\page_{i}.jpg', 'JPEG')
 
 #Удаление предыдущих результатов преобразования pdf к jpg
-def delete_file_in_folder(file_path = local_to_absolute_path('data/pdf_images')):
-    for filename in os.listdir(file_path):
-        file_path = os.path.join(file_path, filename)
+def delete_file_in_folder():
+
+    file_path_to_delete = local_to_absolute_path('data/pdf_images') + '\\'
+    for value in os.listdir(file_path_to_delete):
         try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
+            if os.path.isfile(file_path_to_delete + value):
+                os.remove(file_path_to_delete + value)
         except Exception as e:
-            print(f'Ошибка при удалении файла {file_path}. {e}')
+            print(f'Ошибка при удалении файла {value}. {e}')
+
+    file_path_to_delete = local_to_absolute_path('data/change_image')  + '\\'
+    for value in os.listdir(file_path_to_delete):
+        try:
+            if os.path.isfile(file_path_to_delete + value):
+                os.remove(file_path_to_delete + value)
+        except Exception as e:
+            print(f'Ошибка при удалении файла {value}. {e}')
 
 #Анализ страницы
 def get_text_blocks(images_path = local_to_absolute_path('data/pdf_images')):
@@ -116,7 +149,7 @@ def get_text_blocks(images_path = local_to_absolute_path('data/pdf_images')):
                     centers.append([cx, cy])
 
         if not centers:
-            print("Обработка в процессе...")
+            #print("Обработка в процессе...")
             continue
 
         # Кластеризация по координатам центров
@@ -144,7 +177,7 @@ def get_text_blocks(images_path = local_to_absolute_path('data/pdf_images')):
 
             page_counter += 1
 
-            cropped_image = img[y_min - 50:y_max + 50, x_min - 50 :x_max + 50]
+            cropped_image = img[y_min - 30:y_max + 30, x_min - 30 :x_max + 30]
 
             cropped_image_data = pytesseract.image_to_data(cropped_image, lang='rus', output_type=pytesseract.Output.DICT)
 
@@ -158,12 +191,12 @@ def get_text_blocks(images_path = local_to_absolute_path('data/pdf_images')):
 
 # Основная логика
 def main(pdf_path):
+    delete_file_in_folder()
     convert_PDF_to_image(pdf_path)
     print(f'Images successfully converted from {pdf_path}')
     get_text_blocks()
     print(f'Обработка завершена!')
-    #compare_names_with_embeddings()
-
+    compare_names_with_embeddings()
 
 # Запуск
 pdf_path = 'D:\\OlegDocAnalyze\\fork_urfu_LLM_DOC\\urfu_LLM_Documents\\lama 3.1\\proverka8\\data\\Карталы_Редакция_газеты_оп_4_пх_за_2021_год.pdf'
