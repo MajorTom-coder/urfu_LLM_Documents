@@ -10,11 +10,14 @@ from pathlib import Path
 def local_to_absolute_path(file_path):
     return str(Path(file_path).resolve())
 
-# Загрузка модели эмбеддингов
-
+def check_empty_array_elements(array):
+    for i in range(len(array)):
+        if array[i] == '' and array[i+1] == '' and array[i+2] == '' and array[i+3] == '':
+            return False
+    return True
 
 # Сравнение с использованием эмбеддингов напрямую
-def compare_names_with_embeddings(threshold=0.7):
+def compare_names_with_embeddings(threshold=0.6):
     print('Шаг 3 Анализ блоков \'Утверждаю\' и \'Согласовано\'')
     pytesseract.pytesseract.tesseract_cmd = local_to_absolute_path('Tesseract/tesseract.exe')
 
@@ -28,11 +31,11 @@ def compare_names_with_embeddings(threshold=0.7):
 
         for iterator in range(len(data)):
             if 'утверждаю' in data['text'][iterator].lower().strip() or 'утверждено' in data['text'][iterator].lower().strip():
-                buffer = str(''.join(data['text']))
+                buffer = str(' '.join(data['text']))
                 approve_arr.append(buffer)
                 break
             elif 'согласов' in data['text'][iterator].lower().strip():
-                buffer = str(''.join(data['text']))
+                buffer = str(' '.join(data['text']))
                 agreed_arr.append(buffer)
                 break
 
@@ -135,14 +138,14 @@ def get_text_blocks(images_path = local_to_absolute_path('data/pdf_images')):
                 top_arr[1] = int(data['top'][iterator])
 
             if flag_arr[0]:
-                if int(data['conf'][iterator]) > 50 and flag_arr[0] and data['text'][iterator] != None and (left_arr[0] - 250 <= data['left'][iterator] or left_arr[0] + 250 >= data['left'][iterator]) and (top_arr[0] - 500 <= data['top'][iterator] and top_arr[0] + 500 >= data['top'][iterator]):
+                if int(data['conf'][iterator]) > 80 and flag_arr[0] and data['text'][iterator] != None and (left_arr[0] - 250 <= data['left'][iterator] or left_arr[0] + 250 >= data['left'][iterator]) and (top_arr[0] - 250 <= data['top'][iterator] and top_arr[0] + 250 >= data['top'][iterator]):
                     x, y, w, h = data['left'][iterator], data['top'][iterator], data['width'][iterator], data['height'][iterator]
                     cx, cy = x + w // 2, y + h // 2
                     boxes.append((x, y, w, h))
                     centers.append([cx, cy])
 
             if flag_arr[1]:
-                if int(data['conf'][iterator]) > 50 and flag_arr[1] and data['text'][iterator] != None and (left_arr[1] - 250 <= data['left'][iterator] or left_arr[1] + 250 >= data['left'][iterator]) and (top_arr[1] - 500 <= data['top'][iterator] and top_arr[1] + 500 >= data['top'][iterator]):
+                if int(data['conf'][iterator]) > 80 and flag_arr[1] and data['text'][iterator] != None and (left_arr[1] - 250 <= data['left'][iterator] or left_arr[1] + 250 >= data['left'][iterator]) and (top_arr[1] - 250 <= data['top'][iterator] and top_arr[1] + 250 >= data['top'][iterator]):
                     x, y, w, h = data['left'][iterator], data['top'][iterator], data['width'][iterator], data['height'][iterator]
                     cx, cy = x + w // 2, y + h // 2
                     boxes.append((x, y, w, h))
@@ -199,6 +202,6 @@ def main(pdf_path):
     compare_names_with_embeddings()
 
 # Запуск
-pdf_path = 'D:\\OlegDocAnalyze\\fork_urfu_LLM_DOC\\urfu_LLM_Documents\\lama 3.1\\proverka8\\data\\Карталы_Редакция_газеты_оп_4_пх_за_2021_год.pdf'
+pdf_path = 'D:\\OlegDocAnalyze\\fork_urfu_LLM_DOC\\urfu_LLM_Documents\\lama 3.1\\proverka8\\data\\Еткуль, УСЗН, оп 1, п.хр.2021.pdf'
 
 main(pdf_path)
